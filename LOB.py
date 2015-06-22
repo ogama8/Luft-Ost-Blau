@@ -59,8 +59,8 @@ message = "<p>Hello World (or at least my parents)!</p>" + "<p>By the time you g
 
 postcard_response = lob.Postcard.create(
    description  = 'Tom & JL - 001',
-   to_address   = 'adr_0864417ae5dcef5a',
-   from_address = 'adr_1bfeac2bb50caf6f',
+   to_address   = 'adr_1bfeac2bb50caf6f',
+   from_address = 'adr_0864417ae5dcef5a',
    front = open("front.jpg", 'rb'),
    back  = """
    <html>

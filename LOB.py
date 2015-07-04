@@ -21,7 +21,6 @@ from PIL import Image
 DPI         = 600
 WIDTH       = int(6.25 * DPI)
 HEIGHT      = int(4.25 * DPI)
-PADDING     = int((0.25 + 0.125) * DPI)
 
 
 ### MAKE SSL HAPPY   --------------------------------------------------------
@@ -31,12 +30,40 @@ urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 ### LOB   -------------------------------------------------------------------
 import lob
-from api_key import my_key
-lob.api_key = my_key()
-SENDER_NAME = "Eli Backer"
+from api_key import sel_key
+
+key_select = 0
+sys.stdout.write('\033[93m' + "\nUse the Live API Key? (y/N): " + '\033[0m')
+keystroke = raw_input()
+if (keystroke == 'y' or keystroke == 'Y'):
+   key_select = 1
+
+lob.api_key        = sel_key(key_select)
+SENDER_NAME        = "Eli Backer"
+SENDER_DESCRIPTION = "Home"
 
 
-### MAIN CODE   -------------------------------------------------------------
+### DEFINES FOR CUSTOM TUPLE   ----------------------------------------------
+INDEX       = 0
+NAME        = 1
+DESCRIPTION = 2
+ID          = 3
+
+def indexFromName(name_list, name):
+   names     = [x[NAME] for x in name_list] 
+   to_return = []
+   offset    = 0
+   while name in names:
+      to_return.append(names.index(name) + offset)
+      names.remove(name)
+      offset += 1
+   return to_return
+
+
+### -------------------------------------------------------------------------
+### MAIN CODE
+### -------------------------------------------------------------------------
+
 ## Validity Check   -------------------------------------
 if (len(sys.argv) != 2):
    print("\n" +
@@ -45,7 +72,7 @@ if (len(sys.argv) != 2):
          "  LOB.py [Image Filepath]\n")
    sys.exit(0)
 
-#"""
+
 ## File Path Setup   ------------------------------------
 if (not os.path.exists("sent")):
    os.makedirs("sent")
@@ -55,33 +82,44 @@ os.chdir("sent")
 ## Address List   ---------------------------------------
 address_list = lob.Address.list(count = 100)
 
-
-# This is sort-of messed up.  I make a dictionary with the names as keys so
-# I can alphabetize by key, then another one with IDs as keys so I can look
-# up addresses by their ID.  Ideally there'd be a tuple in here somewhere.
-names_n = {address.name: id_num for (id_num, address) in enumerate(reversed(address_list.data))}
-names_id = {id_num: address for (id_num, address) in enumerate(reversed(address_list.data))}
-
+names = [(id_num, address.name, address.description, address.id) for (id_num, address) in enumerate(reversed(address_list.data))]
 
 while True:
    os.system("clear")   # This is Unix specific
    
-   print("ID# " + u'\u2502' + " Name                               " + u'\u2502' + " Description")
-   for i in range(0, 69):
+   print('\033[104m' + "ID# " + u'\u2502' + " Name                               " + u'\u2502' + " Description                " + '\033[0m')
+   for i in range(0, 70):
       if (i == 4 or i == 41):
          sys.stdout.write(u'\u253c')
       else:
          sys.stdout.write(u'\u2500')
-   print
+   print ' '
 
-   for name in sorted(names_n):
-      print str(names_n[name]).rjust(3) + " " + u'\u2502' + " " + name.ljust(34) + " " + u'\u2502' + " " + names_id[names_n[name]].description
+   i = 0
+   for person in sorted(names, key=lambda tup: tup[NAME]):
+      if (i % 2 == 1):
+         sys.stdout.write('\033[100m')
+      else:
+         sys.stdout.write('\033[0m')
+      i += 1
 
-   sys.stdout.write("\nPlease enter an ID number to mail to: ")
-   # Yes, I know this input is not sanatary.
-   to_id = int(raw_input())
-   to_name = names_id[to_id].name
-   
+      print str(person[INDEX]).rjust(3) + " " + u'\u2502' + " " + person[NAME].ljust(34) + " " + u'\u2502' + " " + person[DESCRIPTION].ljust(26)
+
+   while True:
+      sys.stdout.write('\033[0m' + "\nPlease enter an ID number to mail to ('q' to exit): ")
+      keystroke = raw_input()
+      if (keystroke == 'q' or keystroke == 'Q'):
+         sys.exit(0)
+      elif (keystroke.isdigit()):
+         break
+      else:
+         print '\033[91m' + "Invalid input '" + keystroke + "'" + '\033[0m'
+
+   to_index       = int(keystroke)
+   to_name        = names[to_index][NAME]
+   to_description = names[to_index][DESCRIPTION]
+   to_id          = names[to_index][ID]
+
    sys.stdout.write("\nMailing to " + to_name + "? (Y/n): ")
    
    keystroke = raw_input()
@@ -94,9 +132,9 @@ if (not os.path.exists(to_name)):
    os.makedirs(to_name)
 os.chdir(to_name)
 
-if (not os.path.exists(names_id[to_id].description)):
-   os.makedirs(names_id[to_id].description)
-os.chdir(names_id[to_id].description)
+if (not os.path.exists(to_description)):
+   os.makedirs(to_description)
+os.chdir(to_description)
 
 times_written = len(next(os.walk('./'))[1])
 
@@ -113,43 +151,47 @@ EDITOR = os.environ.get('EDITOR') if os.environ.get('EDITOR') else 'vim'
 
 if (not os.path.isfile("message.html")):
    message_file = open("message.html", 'w')
-   message_file.write("<!-- This is a message to {name} written on {date} -->\n<p>\n\n</p>\n".format(name=to_name, date=today))
+   message_file.write("<!-- This is a message to {name}, {description} written on {date} -->\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\nEli&mdash;\n</p>\n".format(name=to_name, description=to_description, date=today))
    message_file.close()
 
 call([EDITOR, "message.html"])
 call(["aspell", "-x", "-c", "message.html"])
-#"""
+
 
 ## Image Resize   ---------------------------------------
 front_im = Image.open(sys.argv[1])
 
 size = front_im.size
 
-front_im = front_im.crop((0, 0, size[0], int(size[0] / WIDTH * HEIGHT)))
+front_im = front_im.crop((0, 0, size[0], int(float(size[0]) / WIDTH * HEIGHT)))
 front_im = front_im.rotate(90)
 
 front_im = front_im.resize((HEIGHT, WIDTH), PIL.Image.LANCZOS)
 front_im.save('front' + '.jpg', 'JPEG')
 
-sys.exit(0)
-
 
 ## Postcard Send   --------------------------------------
+indices = indexFromName(names, SENDER_NAME)
+for index in indices:
+   if SENDER_DESCRIPTION in names[index]:
+      sender_index = index
+sender_id = names[sender_index][ID]
+
 postcard_response = lob.Postcard.create(
-   description  = to_name + " - " + str(times_written + 1).zfill(3),
-   to_address   = names_id[to_id].id,
-   from_address = names_id[names_n[SENDER_NAME]].id,
+   description  = to_name + ", " + to_description + " - " + str(times_written + 1).zfill(3),
+   to_address   = to_id,
+   from_address = sender_id,
    front = open("front.jpg", 'rb'),
    back  = """
    <html>
       <head>
-         <title>4x6 Postcard Back Template modded by Eli Backer</title>
+         <title>4x6 Postcard Back Template modified by Eli Backer</title>
          <style>
             @font-face {
                font-family: 'Hepworth';
                font-style: normal;
                font-weight: 400;
-               src: url('http://download995.mediafire.com/e8996eql1asg/lh7jzetc7p8f4t2/hepworth-regular-webfont.ttf') format('truetype');
+               src: url('https://github.com/ogama8/Luft-Ost-Blau/blob/master/hepworth-regular-webfont.ttf?raw=true') format('truetype');
             }
 
             *, *:before, *:after {
@@ -207,10 +249,11 @@ postcard_response = lob.Postcard.create(
    data  = {'message': open("message.html", 'r').read()}
 )
 
-sys.stdout.write("The postcard has been successfully created.  It will be sent to " + to_name + " and should be delivered by " + postcard_response.expected_delivery_date + ".  Would you like to view the card? (Y/n): ")
+sys.stdout.write('\033[92m' + "\n\nThe postcard has been successfully created and should be delivered by " + postcard_response.expected_delivery_date + "." + '\033[0m' + "  Would you like to view the card? (y/N): ")
 
 keystroke = raw_input()
-if(keystroke == '' or keystroke == 'y' or keystroke == 'Y'):
+if (keystroke == 'y' or keystroke == 'Y'):
    webbrowser.open_new_tab(postcard_response.url)
 
-print '\n'
+print ' '
+

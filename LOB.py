@@ -9,9 +9,12 @@ Started June 2015 by Eli Backer.
 
 ### IMPORTS   ---------------------------------------------------------------
 import sys
+import os
 import math
+import datetime
 import PIL
-
+import webbrowser
+from   subprocess import call
 
 ### IMAGE HANDLING   --------------------------------------------------------
 from PIL import Image
@@ -30,7 +33,7 @@ urllib3.contrib.pyopenssl.inject_into_urllib3()
 import lob
 from api_key import my_key
 lob.api_key = my_key()
-
+SENDER_NAME = "Eli Backer"
 
 
 ### MAIN CODE   -------------------------------------------------------------
@@ -42,6 +45,82 @@ if (len(sys.argv) != 2):
          "  LOB.py [Image Filepath]\n")
    sys.exit(0)
 
+#"""
+## File Path Setup   ------------------------------------
+if (not os.path.exists("sent")):
+   os.makedirs("sent")
+os.chdir("sent")
+
+
+## Address List   ---------------------------------------
+address_list = lob.Address.list(count = 100)
+
+
+# This is sort-of messed up.  I make a dictionary with the names as keys so
+# I can alphabetize by key, then another one with IDs as keys so I can look
+# up addresses by their ID.  Ideally there'd be a tuple in here somewhere.
+names_n = {address.name: id_num for (id_num, address) in enumerate(reversed(address_list.data))}
+names_id = {id_num: address for (id_num, address) in enumerate(reversed(address_list.data))}
+
+
+while True:
+   os.system("clear")   # This is Unix specific
+   
+   print("ID# " + u'\u2502' + " Name                               " + u'\u2502' + " Description")
+   for i in range(0, 69):
+      if (i == 4 or i == 41):
+         sys.stdout.write(u'\u253c')
+      else:
+         sys.stdout.write(u'\u2500')
+   print
+
+   for name in sorted(names_n):
+      print str(names_n[name]).rjust(3) + " " + u'\u2502' + " " + name.ljust(34) + " " + u'\u2502' + " " + names_id[names_n[name]].description
+
+   sys.stdout.write("\nPlease enter an ID number to mail to: ")
+   # Yes, I know this input is not sanatary.
+   to_id = int(raw_input())
+   to_name = names_id[to_id].name
+   
+   sys.stdout.write("\nMailing to " + to_name + "? (Y/n): ")
+   
+   keystroke = raw_input()
+   if(keystroke == '' or keystroke == 'y' or keystroke == 'Y'):
+      break
+
+
+## Recipient-Based Archive Directory Changes   ----------
+if (not os.path.exists(to_name)):
+   os.makedirs(to_name)
+os.chdir(to_name)
+
+if (not os.path.exists(names_id[to_id].description)):
+   os.makedirs(names_id[to_id].description)
+os.chdir(names_id[to_id].description)
+
+times_written = len(next(os.walk('./'))[1])
+
+today = datetime.date.today().isoformat()
+if (os.path.exists(today)):
+   print '\033[91m' + "\nYou've already written to " + to_name + " today!" + '\033[0m'
+   sys.exit(0)
+os.makedirs(today)
+os.chdir(today)
+
+
+## Launch Editor for Message   --------------------------
+EDITOR = os.environ.get('EDITOR') if os.environ.get('EDITOR') else 'vim'
+
+if (not os.path.isfile("message.html")):
+   message_file = open("message.html", 'w')
+   message_file.write("<!-- This is a message to {name} written on {date} -->\n<p>\n\n</p>\n".format(name=to_name, date=today))
+   message_file.close()
+
+call([EDITOR, "message.html"])
+call(["aspell", "-x", "-c", "message.html"])
+#"""
+
+## Image Resize   ---------------------------------------
 front_im = Image.open(sys.argv[1])
 
 size = front_im.size
@@ -52,15 +131,14 @@ front_im = front_im.rotate(90)
 front_im = front_im.resize((HEIGHT, WIDTH), PIL.Image.LANCZOS)
 front_im.save('front' + '.jpg', 'JPEG')
 
-
-message = "<p>Hello World (or at least my parents)!</p>" + "<p>By the time you get this, I'm either surfing or gone to RISD.  Either way, I hope it finds you well and that the text is readable.  I'm tired.  It's 2:45a and I have to get up at 5:55a.  That's soon, so I'm keeping this short.  It probably won't even have to wrap around the address box.  This is all pretty hacked together right now.  Hopefully in the future there'll be a spell-checker and other fun things.</p>" + "<p>That's all for now, love you!</p>" + "<p>Eli&mdash;</p>"
-
+sys.exit(0)
 
 
+## Postcard Send   --------------------------------------
 postcard_response = lob.Postcard.create(
-   description  = 'Tom & JL - 001',
-   to_address   = 'adr_1bfeac2bb50caf6f',
-   from_address = 'adr_0864417ae5dcef5a',
+   description  = to_name + " - " + str(times_written + 1).zfill(3),
+   to_address   = names_id[to_id].id,
+   from_address = names_id[names_n[SENDER_NAME]].id,
    front = open("front.jpg", 'rb'),
    back  = """
    <html>
@@ -126,10 +204,13 @@ postcard_response = lob.Postcard.create(
       </body>
    </html>
    """,
-   data  = {'message': message}
-   #message = "Hello World!"
-   #message = "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.\n" + "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.\n" + "Neque porro quisquam est, qui dolorem ipsum.\n\n" + "Eli"
+   data  = {'message': open("message.html", 'r').read()}
 )
 
-print postcard_response
+sys.stdout.write("The postcard has been successfully created.  It will be sent to " + to_name + " and should be delivered by " + postcard_response.expected_delivery_date + ".  Would you like to view the card? (Y/n): ")
 
+keystroke = raw_input()
+if(keystroke == '' or keystroke == 'y' or keystroke == 'Y'):
+   webbrowser.open_new_tab(postcard_response.url)
+
+print '\n'

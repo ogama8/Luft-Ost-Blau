@@ -74,9 +74,15 @@ if (len(sys.argv) != 2):
 
 
 ## File Path Setup   ------------------------------------
-if (not os.path.exists("sent")):
-   os.makedirs("sent")
-os.chdir("sent")
+if(key_select == 1):
+   if (not os.path.exists("sent")):
+      os.makedirs("sent")
+   os.chdir("sent")
+else:
+   if (not os.path.exists("sent_test")):
+      os.makedirs("sent_test")
+   os.chdir("sent_test")
+
 
 
 ## Address List   ---------------------------------------
@@ -151,7 +157,7 @@ EDITOR = os.environ.get('EDITOR') if os.environ.get('EDITOR') else 'vim'
 
 if (not os.path.isfile("message.html")):
    message_file = open("message.html", 'w')
-   message_file.write("<!-- This is a message to {name}, {description} written on {date} -->\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\nEli&mdash;\n</p>\n".format(name=to_name, description=to_description, date=today))
+   message_file.write("<!-- This is a message to {name}, {description} written on {date} -->\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\n\n</p>\n<p>\n   Eli&mdash;\n</p>\n".format(name=to_name, description=to_description, date=today))
    message_file.close()
 
 call([EDITOR, "message.html"])
@@ -176,6 +182,11 @@ for index in indices:
    if SENDER_DESCRIPTION in names[index]:
       sender_index = index
 sender_id = names[sender_index][ID]
+
+sys.stdout.write('\033[96m' + "Are you sure you want to send? (Y/n): " + '\033[0m')
+keystroke = raw_input()
+if (keystroke == 'n' or keystroke == 'N'):
+   sys.exit(0)
 
 postcard_response = lob.Postcard.create(
    description  = to_name + ", " + to_description + " - " + str(times_written + 1).zfill(3),
@@ -239,17 +250,17 @@ postcard_response = lob.Postcard.create(
             <div id="keep-out-top"></div>
             <div id="keep-out"></div>
 
-            <div class="text">
-               {{message}}
+            <div class="text">""" +
+               open("message.html", 'r').read() +
+            """
             </div>
          </div>
       </body>
    </html>
-   """,
-   data  = {'message': open("message.html", 'r').read()}
+   """
 )
 
-sys.stdout.write('\033[92m' + "\n\nThe postcard has been successfully created and should be delivered by " + postcard_response.expected_delivery_date + "." + '\033[0m' + "  Would you like to view the card? (y/N): ")
+sys.stdout.write('\033[92m' + "\n\nThe postcard has been created and should be delivered by " + postcard_response.expected_delivery_date + "." + '\033[0m' + "\nWould you like to view the card? (y/N): ")
 
 keystroke = raw_input()
 if (keystroke == 'y' or keystroke == 'Y'):

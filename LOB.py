@@ -18,18 +18,19 @@ from   subprocess import call
 
 ### IMAGE HANDLING   --------------------------------------------------------
 from PIL import Image
-DPI         = 600
+DPI         = 400
 WIDTH       = int(6.25 * DPI)
 HEIGHT      = int(4.25 * DPI)
-
+SIZE        = "4x6"
 
 ### MAKE SSL HAPPY   --------------------------------------------------------
-import urllib3.contrib.pyopenssl
-urllib3.contrib.pyopenssl.inject_into_urllib3()
+#import urllib3.contrib.pyopenssl
+#urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 
 ### LOB   -------------------------------------------------------------------
 import lob
+lob.api_version = '2018-02-08'
 from api_key import sel_key
 
 key_select = 0
@@ -39,9 +40,10 @@ if (keystroke == 'y' or keystroke == 'Y'):
    key_select = 1
 
 lob.api_key        = sel_key(key_select)
-SENDER_NAME        = "Eli Backer"
-SENDER_DESCRIPTION = "Home"
-
+SENDER_NAME        = "ELI BACKER"
+SENDER_DESCRIPTION = "School"
+CC_NAME            = "ELI BACKER"
+CC_DESCRIPTION     = "School"
 
 ### DEFINES FOR CUSTOM TUPLE   ----------------------------------------------
 INDEX       = 0
@@ -86,7 +88,7 @@ else:
 
 
 ## Address List   ---------------------------------------
-address_list = lob.Address.list(count = 100)
+address_list = lob.Address.list(limit = 100)
 
 names = [(id_num, address.name, address.description, address.id) for (id_num, address) in enumerate(reversed(address_list.data))]
 
@@ -169,10 +171,22 @@ front_im = Image.open(sys.argv[1])
 
 size = front_im.size
 
-front_im = front_im.crop((0, 0, size[0], int(float(size[0]) / WIDTH * HEIGHT)))
-front_im = front_im.rotate(90)
+print front_im.size
 
-front_im = front_im.resize((HEIGHT, WIDTH), PIL.Image.LANCZOS)
+if (size[0] < size[1]):
+   front_im = front_im.rotate(90)
+
+print size
+
+front_im.thumbnail((WIDTH, WIDTH), PIL.Image.ANTIALIAS)
+
+print front_im.size
+
+size = front_im.size
+front_im = front_im.crop(((size[0] - WIDTH)/2, 0, size[0] - (size[0] - WIDTH)/2, HEIGHT))
+
+print front_im.size
+
 front_im.save('front' + '.jpg', 'JPEG')
 
 
@@ -183,15 +197,23 @@ for index in indices:
       sender_index = index
 sender_id = names[sender_index][ID]
 
+indices = indexFromName(names, CC_NAME)
+for index in indices:
+   if CC_DESCRIPTION in names[index]:
+      cc_index = index
+cc_id = names[cc_index][ID]
+
 sys.stdout.write('\033[96m' + "Are you sure you want to send? (Y/n): " + '\033[0m')
 keystroke = raw_input()
 if (keystroke == 'n' or keystroke == 'N'):
    sys.exit(0)
 
+
 postcard_response = lob.Postcard.create(
    description  = to_name + ", " + to_description + " - " + str(times_written + 1).zfill(3),
    to_address   = to_id,
    from_address = sender_id,
+   size  = SIZE,
    front = open("front.jpg", 'rb'),
    back  = """
    <html>
@@ -204,7 +226,6 @@ postcard_response = lob.Postcard.create(
                font-weight: 400;
                src: url('https://github.com/ogama8/Luft-Ost-Blau/blob/master/hepworth-regular-webfont.ttf?raw=true') format('truetype');
             }
-
             *, *:before, *:after {
                -webkit-box-sizing: border-box;
                -moz-box-sizing: border-box;
@@ -234,7 +255,6 @@ postcard_response = lob.Postcard.create(
                width: 3.5in;
                height: 2.6in;
             }      
-
             .text {
                margin: 0.125in;
                font-family: 'Hepworth', sans-serif;
@@ -244,12 +264,10 @@ postcard_response = lob.Postcard.create(
             }
          </style>
       </head>
-
       <body>
          <div id="safe-area">
             <div id="keep-out-top"></div>
             <div id="keep-out"></div>
-
             <div class="text">""" +
                open("message.html", 'r').read() +
             """
@@ -259,6 +277,80 @@ postcard_response = lob.Postcard.create(
    </html>
    """
 )
+
+
+sys.stdout.write('\033[93m' + "\nWould you like to send an auto-cc? (Y/n): " + '\033[0m')
+
+keystroke = raw_input()
+if (keystroke != 'n' and keystroke != 'N'):
+   lob.Postcard.create(
+      description  = "(Auto-CC) - " + str(times_written + 1).zfill(3),
+      to_address   = cc_id,
+      from_address = sender_id,
+      size  = SIZE,
+      front = open("front.jpg", 'rb'),
+      back  = """
+      <html>
+         <head>
+            <title>4x6 Postcard Back Template modified by Eli Backer</title>
+            <style>
+               @font-face {
+                  font-family: 'Hepworth';
+                  font-style: normal;
+                  font-weight: 400;
+                  src: url('https://github.com/ogama8/Luft-Ost-Blau/blob/master/hepworth-regular-webfont.ttf?raw=true') format('truetype');
+               }
+               *, *:before, *:after {
+                  -webkit-box-sizing: border-box;
+                  -moz-box-sizing: border-box;
+                  box-sizing: border-box;
+               }
+               body {
+                  width: 6.25in;
+                  height: 4.25in;
+                  margin: 0;
+                  padding: 0;
+               }
+               #safe-area {
+                  position: absolute;
+                  width: 6in;
+                  height: 4in;
+                  left: 0.125in;
+                  top: 0.125in;
+               }
+               #keep-out-top {
+                  float: right;
+                  width: 0.1in;
+                  height: 1.4in;
+               }      
+               #keep-out {
+                  float: right;
+                  clear: both;
+                  width: 3.5in;
+                  height: 2.6in;
+               }      
+               .text {
+                  margin: 0.125in;
+                  font-family: 'Hepworth', sans-serif;
+                  font-size: 12px;
+                  font-weight: 400;
+                  color: black;
+               }
+            </style>
+         </head>
+         <body>
+            <div id="safe-area">
+               <div id="keep-out-top"></div>
+               <div id="keep-out"></div>
+               <div class="text">""" +
+                  open("message.html", 'r').read() +
+               """
+               </div>
+            </div>
+         </body>
+      </html>
+      """
+   )
 
 sys.stdout.write('\033[92m' + "\n\nThe postcard has been created and should be delivered by " + postcard_response.expected_delivery_date + "." + '\033[0m' + "\nWould you like to view the card? (y/N): ")
 
